@@ -1,4 +1,4 @@
-R script from --->  Milos Popovic
+## R script from --->  Milos Popovic
 
 library(readxl)
 # libraries we need
@@ -113,13 +113,13 @@ get_river_map <- function() {
   p <-
     ggplot() +
     geom_sf(
-      data = eu_riv_width1,
+      data = eu_riv_width,
       aes(
         color = factor(ORD_FLOW), size = width,
         alpha = factor(ORD_FLOW)
       )
     ) +
-    geom_sf(points_sf, colour = "black", fill = "red", alpha=.3)+
+    geom_sf(data=points_sf, colour = "red", fill = "black", alpha=.3)+
     coord_sf(
       crs = 4087,
       xlim = c(bbox["xmin"], bbox["xmax"]),
