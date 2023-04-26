@@ -95,15 +95,16 @@ bbox <- get_bounding_box()
 #---------
 setwd("C:/Users/isma-/OneDrive/Escritorio/full databse/DATA")
 df <- read_xlsx("Global_dataset.xlsx")
+df<- df %>% filter(Alien =="Y")
 df<-df[!duplicated(df$site_id), ]
-df<- df[,c(8,9)]
-df1<- df[c(1:50), ]
+#df<- df[,c(8,9)]
+#df1<- df[c(1:50), ]
 
-points_sf <- st_as_sf(df1, coords = c("Longitude_X", "Latitude_Y")) 
+points_sf <- st_as_sf(df, coords = c("Longitude_X", "Latitude_Y")) 
 st_crs(points_sf) <- st_crs("+proj=longlat +datum=WGS84 +no_defs")
 points_sf <- st_transform(points_sf, 4087)
 
-eu_riv_width1<- eu_riv_width %>% filter(width  > 0.6)
+#eu_riv_width1<- eu_riv_width %>% filter(width  > 0.6)
 
 st_crs(points_sf)
 st_crs(eu_riv_width1)
