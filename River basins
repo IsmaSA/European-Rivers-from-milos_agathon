@@ -1,5 +1,5 @@
 ###################################################
-#                 Mapping river basins with R   YOUTUBE
+#                 Mapping river basins with R
 #                 Milos Popovic
 #                 2023/07/07
 ###################################################
@@ -177,17 +177,34 @@ unique(
   brazil_river_basin_width$HYBAS_ID
 )
 
+brazil_river_basin_width1 = brazil_river_basin_width %>% filter(HYBAS_ID=='2030073570')
+
+turkey_locations <- readxl::read_excel('mydata.xlsx') %>% drop_na()
+turkey_locations$Longitude...8 <- as.numeric(turkey_locations$Longitude...8)
+turkey_locations$Latitude...7 <- as.numeric(turkey_locations$Latitude...7)
+
+turkey_locations <- turkey_locations[!is.na(turkey_locations$Longitude...8) & !is.na(turkey_locations$Latitude...7), ]
+
+turkey_locations <- st_as_sf(turkey_locations, coords = c("Longitude...8", "Latitude...7")) 
+st_crs(turkey_locations) <- st_crs("+proj=longlat +datum=WGS84 +no_defs")
+turkey_locations <- st_transform(turkey_locations, 4087)
 
 
+turkey_locations1 = turkey_locations %>% filter(Site == 'Euphrates')
+turkey_locations2 = turkey_locations %>% filter(!Site == 'Euphrates')
 
+europe_map <- ne_countries(scale = "medium", returnclass = "sf") %>%
+  filter(admin == "Turkey")
 
+plot(europe_map)
 
 
 hcl.pals("qualitative")
 
 p <- ggplot() +
+  geom_sf(data = europe_map, fill = "gray90", color = "gray10", lwd=0.6) +
   geom_sf(
-    data = brazil_river_basin_width,
+    data = brazil_river_basin_width1,
     aes(
       color = factor(
         HYBAS_ID
@@ -196,6 +213,11 @@ p <- ggplot() +
       alpha = width
     )
   ) +
+  
+  geom_sf(data=turkey_locations1,  fill = "purple", alpha=.8, shape = 22, size=1.5)+
+  geom_sf(data=turkey_locations1,  fill = "red",    alpha=.8, shape = 22, size=1.5)+
+  
+  
   scale_color_manual(
     name = "",
     values = hcl.colors(
