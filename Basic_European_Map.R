@@ -46,9 +46,8 @@ ggplot() +
   geom_sf(data = europe_map, aes(fill = color))+   scale_fill_identity()+ 
   geom_sf(data = riversData1, aes(size = line_width), color = "steelblue2") + 
   coord_sf() + theme_bw()+ xlim(-11,30) + ylim(36,60)+
-geom_point(data = df1, aes(x = Longitude, y = Latitude, color = year), size = 2) +
-  scale_color_gradient(low = "yellow", high = "red", name = "Year") + 
-  annotation_scale(location = "bl", width_hint = 0.5) +
+  geom_point(data = df, aes(x = Longitude_X, y = Latitude_Y), 
+             size = 1, shape = 21, color = "black", fill = "red", stroke = 0.2) +  annotation_scale(location = "bl", width_hint = 0.5) +
   annotation_north_arrow(location = "tl", 
                          which_north = "true", pad_x = unit(0.75, "in"),
                          pad_y = unit(0.5, "in"))
