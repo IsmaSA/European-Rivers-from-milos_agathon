@@ -1,0 +1,21 @@
+if (!requireNamespace("leaflet", quietly = TRUE)) install.packages("leaflet")
+if (!requireNamespace("sf", quietly = TRUE)) install.packages("sf")
+if (!requireNamespace("dplyr", quietly = TRUE)) install.packages("dplyr")
+
+library(leaflet)
+library(sf)
+library(dplyr)
+
+poland_rivers_sample <- poland_rivers %>% sample_n(500)
+
+world_countries <- ne_countries(scale = "medium", returnclass = "sf")
+europe_countries <- world_countries[world_countries$continent == "Europe", ]
+poland_boundary <- world_countries[world_countries$admin == "Poland", ]
+
+leaflet(data = poland_rivers) %>%
+  addTiles() %>%  # Add default OpenStreetMap tile layer
+  addProviderTiles(providers$CartoDB) %>%  # Add a light-themed background map
+  addPolylines(color = "#1E90FF", weight = 2, opacity = 0.4) %>%  # Style for river lines
+  addPolygons(data = poland_boundary, color = "black", fill = FALSE, weight = 3) %>%  # Add Poland boundary
+  setView(lng = 19.4, lat = 52.1, zoom = 6)  %>%
+addMiniMap(width = 150, height = 150)
