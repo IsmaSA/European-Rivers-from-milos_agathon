@@ -252,3 +252,140 @@ for (t in type) {
 
 
 
+
+setwd("C:/Users/Propietario/Desktop/ELZA")
+list.files()
+library(maps)
+library(rworldmap)
+library(rworldxtra)
+library(ggspatial)
+library(rnaturalearth)
+library(rnaturalearthdata)
+
+d = read_xlsx("GLOBAL NNS DATA FINAL.xlsx")
+world <- ne_countries(type = 'countries', returnclass = "sf")
+
+setdiff(unique(world$admin), unique(d$Location))
+
+d$Location[d$Location =="Tanzania, United Republic of"] <- "United Republic of Tanzania"
+d$Location[d$Location =="Russian Federation"] <- "Russia"
+d$Location[d$Location =="Bahamas"] <- "The Bahamas"
+d$Location[d$Location ==""] <- "French Southern and Antarctic Lands"
+d$Location[d$Location =="Timor-Leste"] <- "East Timor"
+d$Location[d$Location =="Venezuela, Bolivarian Republic of"] <- "Venezuela"
+d$Location[d$Location =="Côte d'Ivoire"] <- "Ivory Coast"
+d$Location[d$Location =="Congo"] <- "Republic of the Congo"
+d$Location[d$Location =="Eswatini"] <- "eSwatini"
+d$Location[d$Location =="Palestine, State of"] <- "Palestine"
+d$Location[d$Location =="Lao People's Democratic Republic"] <- "Laos"
+d$Location[d$Location =="Viet Nam"] <- "Vietnam"
+d$Location[d$Location =="Korea, Democratic People's Republic of"] <- "North Korea"
+d$Location[d$Location =="Korea, Republic of"] <- "South Korea"
+d$Location[d$Location =="Iran, Islamic Republic of"] <- "Iran"
+d$Location[d$Location =="Syrian Arab Republic"] <- "Syria"
+d$Location[d$Location =="Moldova, Republic of"] <- "Moldova"
+d$Location[d$Location =="United Kingdom of Great Britain and Northern Ireland"] <- "United Kingdom"
+d$Location[d$Location =="Brunei Darussalam"] <- "Brunei"
+d$Location[d$Location =="Czech Republic"] <- "Czechia"
+d$Location[d$Location =="Cyprus"] <- "Cyprus"
+d$Location[d$Location =="Macedonia"] <- "North Macedonia"
+d$Location[d$Location =="Serbia"] <- "Republic of Serbia"
+d$Location[d$Location =="Sudan"] <- "South Sudan"
+
+unique(d$Location)
+d %>% filter(str_detect(Location, "rance"))
+
+setdiff(unique(d$Location), unique(world$admin) )
+
+d$Location[d$Location =="Hawaiian Islands"] <- "United States of America"
+d$Location[d$Location =="Galapagos"] <- "Ecuador"
+d$Location[d$Location =="USA Coastal States"] <- "United States of America"
+d$Location[d$Location =="Marshall Islands"] <- ""
+d$Location[d$Location =="Seychelles"] <- ""
+d$Location[d$Location =="Liechtenstein"] <- ""
+d$Location[d$Location =="Antigua and Barbuda"] <- ""
+d$Location[d$Location =="Barbados"] <- ""
+d$Location[d$Location =="Cayman Islands"] <- ""
+d$Location[d$Location =="Guadeloupe"] <- ""
+d$Location[d$Location =="Guam"] <- "United States of America"
+d$Location[d$Location =="Martinique"] <- ""
+d$Location[d$Location =="Saint Kitts and Nevis"] <- ""
+d$Location[d$Location =="Virgin Islands (U.S.)"] <- "United States of America"
+d$Location[d$Location =="Comoros"] <- ""
+d$Location[d$Location =="Réunion"] <- ""
+d$Location[d$Location =="Cook Islands"] <- ""
+d$Location[d$Location =="Micronesia, Federated States of"] <- ""
+d$Location[d$Location =="Niue"] <- ""
+d$Location[d$Location =="Palau"] <- ""
+d$Location[d$Location =="Samoa"] <- ""
+d$Location[d$Location =="Singapore"] <- ""
+d$Location[d$Location =="Tonga"] <- ""
+d$Location[d$Location =="American Samoa"] <- ""
+d$Location[d$Location =="Dominica"] <- ""
+d$Location[d$Location =="Grenada"] <- ""
+d$Location[d$Location =="Northern Mariana Islands"] <- "United States of America"
+d$Location[d$Location =="Saint Lucia"] <- ""
+d$Location[d$Location =="Saint Vincent and the Grenadines"] <- ""
+d$Location[d$Location =="Corsica"] <- "France"
+d$Location[d$Location =="Madeira"] <- "Portugal"
+d$Location[d$Location =="Balearic Islands"] <- "Spain"
+d$Location[d$Location =="Canary Islands"] <- "Spain"
+d$Location[d$Location =="Azores"] <- "Portugal"
+d$Location[d$Location =="Sicily"] <- "Italy"
+d$Location[d$Location =="Alaska"] <- "United States of America"
+d$Location[d$Location =="Svalbard and Jan Mayen"] <- "Norway"
+d$Location[d$Location =="California"] <- "United States of America"
+d$Location[d$Location =="Hawaii"] <- "United States of America"
+d$Location[d$Location =="Chesapeake Bay"] <- "United States of America"
+d$Location[d$Location =="Isle of Man"] <- "United Kingdom"
+d$Location[d$Location =="Åland Islands"] <- "Sweden"
+
+
+
+d1<- d %>% group_by(Location) %>% summarise(Richness = n_distinct(Taxon)) 
+str(d1)
+str(world)
+
+dat <- world %>%  left_join(d1, by = c("admin" = "Location"))
+dat1<- dat[,c(10,169,170)]
+
+tmap_tip()
+tmap_show_palettes()
+
+tm_shape(dat1, projection = "+proj=eck4") +
+  tm_polygons("Richness",
+              palette = "OrRd",
+              title = "Number of non-native species",
+              # style="pretty",
+              breaks = breaks,
+              style = "fixed",
+  )+
+  tm_layout(
+    legend.bg.color = "white",
+    legend.show = T,
+    inner.margins=c(.04, .01, .1, .01),
+    bg.color="#AEDFE5",
+    outer.bg.color="white",
+    earth.boundary=c(-180, 180, -80, 90),
+    earth.boundary.color="white",
+    earth.boundary.lwd=.4,
+    space.color="white",
+    attr.outside=T,
+    attr.color="grey20",
+    frame = FALSE,
+    legend.title.size = 1.5,
+    legend.text.size = 1)
+
+
+min_richness <- min(dat1$Richness, na.rm = TRUE)
+max_richness <- max(dat1$Richness, na.rm = TRUE)
+
+
+num_intervals <- 8
+breaks <- seq(min_richness, max_richness, length.out = num_intervals + 1)
+breaks <- classIntervals(dat1$Richness, n = 7, style = "jenks")$brks
+
+breaks <- c(0, 2000, 4000, 6000, 8000, 10000, 12000, 14000) # Adjust based on your data
+
+
+
