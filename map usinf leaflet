@@ -19,3 +19,135 @@ leaflet(data = poland_rivers) %>%
   addPolygons(data = poland_boundary, color = "black", fill = FALSE, weight = 3) %>%  # Add Poland boundary
   setView(lng = 19.4, lat = 52.1, zoom = 6)  %>%
 addMiniMap(width = 150, height = 150)
+
+
+
+
+
+
+if (!requireNamespace("leaflet", quietly = TRUE)) install.packages("leaflet")
+if (!requireNamespace("sf", quietly = TRUE)) install.packages("sf")
+if (!requireNamespace("dplyr", quietly = TRUE)) install.packages("dplyr")
+
+library(leaflet)
+library(sf)
+library(dplyr)
+
+world_countries <- ne_countries(scale = "medium", returnclass = "sf")
+europe_countries <- world_countries[world_countries$continent == "Europe", ]
+poland_boundary <- world_countries[world_countries$admin == "Germany", ]
+
+locations <- data.frame(
+  name = c("Schleimünde", "Downtown Kiel", "Falckenstein Beach", "Kiel Canal"),
+  coords = c("54°40'33.0\"N 10°01'48.0\"E",
+             "54°19'45.7\"N 10°08'55.7\"E",
+             "54°23'36.0\"N 10°11'21.4\"E",
+             "54°22'55.3\"N 10°09'43.6\"E"))
+convert_dms_to_decimal <- function(dms) {
+  parts <- strsplit(dms, split = "[°'\" ]+")[[1]]
+  degrees <- as.numeric(parts[1]) + as.numeric(parts[2])/60 + as.numeric(parts[3])/3600
+  if (parts[4] == "S" || parts[4] == "W") degrees <- -degrees
+  degrees
+}
+locations$lat <- sapply(locations$coords, function(coord) {
+  lat_part <- unlist(strsplit(coord, split = " "))[1]
+  convert_dms_to_decimal(lat_part)})
+
+locations$lng <- sapply(locations$coords, function(coord) {
+  lng_part <- unlist(strsplit(coord, split = " "))[2]
+  convert_dms_to_decimal(lng_part)})
+
+#Schleimünde	54°40'33.0"N 10°01'48.0"E
+#Downtown Kiel	54°19'45.7"N 10°08'55.7"E
+#Falckenstein beach 	54°23'36."N 10°11'21.4"E
+#Kiel canal	54°22'55.3"N 10°09'43.6"E
+locations$color <- c("a","b","c","d")
+pal <- colorFactor("viridis", levels = locations$color)
+aa<- names(providers)
+
+
+Esri
+Esri.WorldStreetMap
+Esri.WorldTopoMap
+Esri.WorldImagery
+for(a in aa) {
+ m <- 
+  leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
+  addProviderTiles(providers$a, options = providerTileOptions(noWrap = TRUE, attribution = "")) %>%
+  setView(lng = 10.2, lat = 54.5, zoom = 10) %>%
+  removeControl("zoom")  %>%
+  addCircleMarkers(data = locations, radius = 3, color = ~pal(color), opacity = 0.8) %>%
+  addMiniMap( width = 100, height = 100, tiles = providers$a) %>%
+addScaleBar(position = "bottomleft", options = scaleBarOptions(maxWidth = 100, metric = TRUE, imperial = FALSE))
+
+name <- a
+ tryCatch({
+    saveWidget(m, paste0("C:/Users/Propietario/Downloads/harami/others2.0/map2", ".html"), selfcontained = F)
+    webshot(paste0("C:/Users/Propietario/Downloads/harami/others2.0/map2", ".html"), 
+            file = paste0("C:/Users/Propietario/Downloads/harami/others2.0/", name, ".png"))
+    cat("*")
+  }, error = function(e) {
+    cat("Error: ", e$message, "\n")
+  })
+}
+pandoc::pandoc_install()
+
+
+m <- 
+  leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
+  addProviderTiles(providers$OneMapSG.Default, options = providerTileOptions(noWrap = TRUE, attribution = "")) %>%
+  setView(lng = 10.2, lat = 54.5, zoom = 10) %>%
+  removeControl("zoom")  %>%
+  addCircleMarkers(data = locations, radius = 3, color = ~pal(color), opacity = 0.8) %>%
+  addMiniMap( width = 100, height = 100, tiles = providers$Esri.WorldImagery) %>%
+addScaleBar(position = "bottomleft", options = scaleBarOptions(maxWidth = 100, metric = TRUE, imperial = FALSE))
+m
+
+m<- leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
+  addProviderTiles(providers$, options = providerTileOptions(noWrap = TRUE, attribution = "")) %>%
+  setView(lng = 10.155, lat = 54.33, zoom = 14.4) %>%
+  removeControl("zoom") # %>%
+ # addCircleMarkers(data = locations, radius = 3, color = ~pal(color), opacity = 0.8) 
+m
+
+if (!requireNamespace("webshot", quietly = TRUE)) {
+  install.packages("webshot")
+  webshot::install_phantomjs()
+}
+library(htmlwidgets)
+library(webshot)
+saveWidget(m, "map.html", selfcontained = TRUE)
+webshot("C:/Users/Propietario/Downloads/harami/others2.0/map.html", 
+file = "C:/Users/Propietario/Downloads/harami/others2.0/map.png")
+
+saveWidget(sankey, "sankey_diagram.html")
+webshot2::webshot("sankey_diagram.html", "sankey_diagram.pdf") 
+
+north <- 57.75
+south <- 54.5
+east <- 15.0
+west <- 8.0
+
+# Create the map
+h <- leaflet() %>%
+  addProviderTiles(providers$) %>%
+  setView(lng = 11.5, lat = 56, zoom = 5) %>% # Set center and zoom level to encompass the area
+  addRectangles(
+    lng1 = west, lat1 = north, 
+    lng2 = east, lat2 = south, 
+    color = "#FF5733", # Orange color for the rectangle
+    fill = FALSE,
+    weight = 2
+  )
+h
+
+all <- 18364 
+reward = (18364 * 0.87) * 0.85 # after taxes, I will take all and distribute it 
+Tonda = all  * 0.10 # 1836.4
+Milos=  all * 0.10 
+Paride = all * 0.10
+Fran = reward * 0.10
+Boris = reward * 0.10
+phil_isma <- (all - sum(Tonda, Milos, Paride,Fran,Boris)) / 2 # each: 5069.382
+  
+  
