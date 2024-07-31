@@ -1,0 +1,67 @@
+setwd("D:/GBIF_data")
+
+results_file <- "all_GBIF.xlsx"
+if (file.exists(results_file)) {
+  all_GBIF <- read_xlsx(results_file)
+} else {
+  all_GBIF <- data.frame()
+}
+
+counter<- 1
+files <- list.files(pattern = ".zip")
+target_file <- "occurrence.txt"
+
+processed_species <- all_GBIF$name
+to_process <- setdiff(files, processed_species)
+i <- to_process[1]
+i <- "0002638-240626123714530.zip"
+for(i in files){
+  cat( counter, "/", length(files), "\n")
+  counter<- counter + 1
+  
+  if( i %in% unique(all_GBIF$name)) { next }
+  tryCatch({
+  unzipped_files <- unzip(i, list = TRUE)
+  if(i =="0061397-240506114902167.zip") {
+ next
+  } else {
+  if(target_file %in% unzipped_files$Name) {
+    unzip(i, files = target_file)
+    
+  occurrence_data <- fread(target_file , 
+   select = c("species","acceptedTaxonKey","occurrenceStatus","basisOfRecord","hasCoordinate","decimalLatitude", "decimalLongitude"))
+  } else {
+    print(paste("NA"))
+  }
+  }
+ 
+occurrence_data1<- occurrence_data  %>% filter(!occurrenceStatus == "ABSENT")
+
+occurrence_sf <- sf::st_as_sf(occurrence_data1, coords = c("decimalLongitude", "decimalLatitude"), crs = 4326)
+joined_data <- sf::st_join(occurrence_sf, regions)
+
+region_counts <- joined_data %>%
+  group_by(species) %>%
+  mutate(Total_records = n()) %>%
+  group_by(species, REALM) %>%
+  summarise(
+    count = n(),
+    Total_records = first(Total_records),
+    percentage = (count / Total_records) * 100,
+    .groups = 'drop' ) %>%
+  filter(percentage > 95) # this is my threshold :) 95% records
+
+region_counts$REALM <- tolower(region_counts$REALM)
+
+region_counts2 <- region_counts %>% group_by(species) %>% summarise(realm =paste(REALM, collapse = ",")) %>% dplyr::select(species, realm)
+  
+  if(nrow(region_counts2)>0){ 
+    all_GBIF <- rbind(all_GBIF, region_counts2)
+    write_xlsx(all_GBIF, results_file)
+    
+  } else{ next}
+  rm(occurrence_data, occurrence_data1,occurrence_sf,joined_data)
+ }, error = function(e) {
+    print(paste("F en el chat:", i, "Error:", e$message))
+  })
+}
