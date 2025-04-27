@@ -1,0 +1,235 @@
+dir.create("performance_species", showWarnings = FALSE)
+
+setwd("C:/Users/user/Desktop/Ismael SOTO/GlobalHotspots")
+
+### Now I should have all the data and so I need to run the SDMs:
+pacman::p_load("readxl",'modEvA', "data.table",'maxnet', "dplyr", 'randomForest',"embarcadero",
+"tidyr", "stringr","terra", "blockCV", "usdm",'dismo', "future.apply",'ranger','mgcv',"dbarts")
+
+
+predictors <- read_xlsx("./Database/pred.val.occ.xlsx")
+bg <-  read_xlsx("./Database/bg_full.xlsx")
+spp <- readRDS("./Database/occ.rds")
+
+nrow(spp)
+a<-spp %>% group_by(species) %>% summarise(n =n()) %>% filter(n >= 10)
+spp <- spp %>% filter(species %in% a$species )
+unique(spp$species)
+
+preds = rast('Database/VIF.predictors.tif')
+preds = mask(preds, preds[[1]])
+preds = preds[[-10]]
+plot(preds)
+names(preds)
+
+head(predictors) # de aqui me interesa el cell ID con predictors
+head(bg) # pseudoabsences
+head(spp) # All sp points
+
+
+plan(multisession, workers = 4)   
+
+# occ  <- merge(sp,  predictors, by = "cell_id", all.x = TRUE) to make it later
+bg$presence <- 0
+spp$presence <- 1
+
+species_vec <- sort(unique(spp$species))
+
+eval_tbl <- data.frame(fold = 1:5, species = NA,
+                         AUC_mx  = NA, Boyce_mx  = NA, TSS_mx  = NA,
+                         AUC_brt = NA, Boyce_brt = NA, TSS_brt = NA,
+                         AUC_rf  = NA, Boyce_rf  = NA, TSS_rf  = NA,
+                         AUC_gam = NA, Boyce_gam = NA, TSS_gam = NA)
+pred_mx  <- preds_brt <- preds_rf <- preds_gam <- list()
+all_eval_tbl <- data.frame()
+
+sp <- "Abaeis nicippe"
+k = 3
+
+folder_path <- "C:/Users/user/Desktop/Ismael SOTO/GlobalHotspots/SDMs/MXs"
+
+
+for (sp in species_vec[-1]) {
+  message("\n==== ", sp, " ====")
+  
+  check <- list.files(folder_path, pattern = sp, full.names = TRUE)
+  
+  if (length(check) > 0) {
+    message(paste("Skipping", sp, "- already exists"))
+    next}
+  
+  d <- spp %>%
+    filter(species == sp) %>%
+    distinct(cell_id, .keep_all = TRUE) %>%
+    dplyr::select(-species, -cell_id)
+  
+  if (nrow(d) < 10) {
+    warning(sp, ": <10 cell ID!!! :( ")
+    next
+  }
+  
+  bg.0 <- bg[, c('x', 'y', 'presence')]
+  colnames(bg.0) <- c('cell_x', 'cell_y', 'presence')
+  
+  data <- rbind(d, bg.0)
+  table(data$presence)
+  
+  # Spatial folds:
+  sv <- vect(data, geom = c("cell_x", "cell_y"), crs = "EPSG:4326")
+  sb1 <- cv_spatial(
+    x = sv,
+    column = "presence",
+    k = 5,
+    size = 250000,
+    selection = "random",
+    iteration = 50
+  )
+  
+  data$fold <- sb1[['folds_ids']]
+  
+  for (k in 1:5) {
+    print(k)
+    train <- subset(data, fold != k)
+    test <- subset(data, fold == k)
+    
+    if (sum(train$presence) < 10 || sum(test$presence) < 10) {
+      warning("Fold ", k, " skipped for ", sp, " (train or test has no presences)")
+      next
+    }
+    
+    # extract predictors once
+    trainX <- terra::extract(preds, train[, c("cell_x", "cell_y")])[, -1]
+    testX <- terra::extract(preds, test[, c("cell_x", "cell_y")])[, -1]
+    
+    # -- Model 1. MaxEnt --------------------------------------
+    tryCatch({
+      trainX1 <- trainX
+      trainX1[is.na(trainX1)] <- 0.001
+      
+      mx <- maxnet(
+        p = train$presence,
+        data = trainX1,
+        args = c('hinge=false', 'threshold=false', 'quadratic=true'),
+        regmult = 2,
+        classes = "lqp"
+      )
+      summary(mx)
+      p_mx <- predict(mx, testX, type = "cloglog")
+      
+      # Evaluate:
+      auc_mx <- dismo::evaluate(p_mx[test$presence == 1], a = p_mx[test$presence == 0])@auc
+      ok <- !is.na(p_mx)
+      obs_vec <- test$presence[ok]
+      pred_vec <- p_mx[ok]
+      boyce_mx <- as.numeric(Boyce(obs = obs_vec, pred = pred_vec[1:length(obs_vec)], main = "MaxEnt Boyce plot")$Boyce)
+      tss_mx <- NA
+      
+      eval_tbl[k, c("AUC_mx", "Boyce_mx", "TSS_mx")] <- c(auc_mx, boyce_mx, tss_mx)
+      eval_tbl$species[k] <- sp
+      
+      pred_ras <- predict(preds, mx, type = "cloglog", clamp = TRUE, na.rm = TRUE)
+      plot(pred_ras)
+      save_pred(pred_ras, "SDMs/MXs", sp, k, "mx")
+    }, error = function(e) message("[MAXENT] ", sp, " fold ", k, ": ", e$message))
+    
+    # -- Model 2. BRT -----------------------------------------
+    tryCatch({
+      brt <- gbm.step(
+        data = data.frame(pa = train$presence, trainX),
+        gbm.x = 2:ncol(trainX) + 0,
+        gbm.y = 1,
+        family = "bernoulli",
+        tree.complexity = 3,
+        learning.rate = 0.001,
+        bag.fraction = 0.6,
+        step.size = 25
+      )
+      summary(brt)
+      p_brt <- predict(brt, testX, n.trees = brt$n.trees, type = "response")
+      
+      # Evaluate:
+      auc_brt <- as.numeric(AUC(obs = test$presence, pred = p_brt)$AUC)
+      boyce_brt <- as.numeric(Boyce(model = brt)$Boyce)
+      tss_brt <- threshMeasures(model = brt, measures = c("TSS"), thresh = "preval")$ThreshMeasures
+      tss_brt <- as.numeric(tss_brt)
+      
+      eval_tbl[k, c("AUC_brt", "Boyce_brt", "TSS_brt")] <- c(auc_brt, boyce_brt, tss_brt)
+      eval_tbl$species[k] <- sp
+      
+      pred_ras <- predict(preds, brt, n.trees = brt$n.trees, type = "response")
+      save_pred(pred_ras, "SDMs/BRTs", sp, k, "brt")
+    }, error = function(e) message("[BRT] ", sp, " fold ", k, ": ", e$message))
+    
+    # -- Model 3. RandomForest --------------------------------
+    tryCatch({
+      train_df <- data.frame(presence = factor(train$presence), trainX)
+      train_df <- na.roughfix(train_df)
+      
+      rf <- randomForest(
+        x = train_df[, -1],
+        y = train_df$presence,
+        ntree = 1000,
+        mtry = 3,
+        nodesize = 10,
+        importance = TRUE
+      )
+      
+      test_df <- na.roughfix(data.frame(testX))
+      p_rf <- predict(rf, newdata = test_df, type = "prob")[, "1"]
+      
+      # Evaluate:
+      auc_rf <- as.numeric(AUC(obs = test$presence, pred = p_rf)$AUC)
+      boyce_rf <- as.numeric(Boyce(obs = test$presence, pred = p_rf)$Boyce)
+      
+      cm <- threshMeasures(model = rf, thresh = "maxTSS", ylim = c(0, 1))$ConfusionMatrix
+      sensitivity <- cm[2, 2] / (cm[2, 2] + cm[1, 2])
+      specificity <- cm[1, 1] / (cm[1, 1] + cm[2, 1])
+      tss_rf <- sensitivity + specificity - 1
+      
+      eval_tbl[k, c("AUC_rf", "Boyce_rf", "TSS_rf")] <- c(auc_rf, boyce_rf, tss_rf)
+      eval_tbl$species[k] <- sp
+      
+      pred_ras <- predict(preds, rf, type = "prob", index = 2, na.rm = TRUE)
+      save_pred(pred_ras, "SDMs/RFs", sp, k, "rf")
+    }, error = function(e) message("[RF] ", sp, " fold ", k, ": ", e$message))
+    
+    # -- Model 4. GAM -----------------------------------------
+    tryCatch({
+      gam_form <- as.formula(paste("presence ~", paste0("s(", names(trainX), ", k = 5)", collapse = " + ")))
+      
+      gam_mdl <- gam(
+        formula = gam_form,
+        family = binomial(link = "logit"),
+        data = data.frame(presence = train$presence, trainX),
+        select = TRUE,
+        method = "GCV.Cp"
+      )
+      summary(gam_mdl)
+      
+      pred_all <- predict(gam_mdl, newdata = testX, type = "response")
+      
+      auc_gam <- AUC(model = gam_mdl, curve = "PR")$AUC
+      boyce_gam <- Boyce(model = gam_mdl)$Boyce
+      cm <- threshMeasures(model = gam_mdl, thresh = "maxTSS", ylim = c(0, 1))$ConfusionMatrix
+      sensitivity <- cm[2, 2] / (cm[2, 2] + cm[1, 2])
+      specificity <- cm[1, 1] / (cm[1, 1] + cm[2, 1])
+      tss_gam <- sensitivity + specificity - 1
+      
+      eval_tbl[k, c("AUC_gam", "Boyce_gam", "TSS_gam")] <- c(auc_gam, boyce_gam, tss_gam)
+      eval_tbl$species[k] <- sp
+      
+      pred_ras <- predict(preds, gam_mdl, type = "response")
+      save_pred(pred_ras, "SDMs/GAMs", sp, k, "gam")
+      all_eval_tbl <- rbind(all_eval_tbl, eval_tbl)
+      
+    }, error = function(e) message("[GAM] ", sp, " fold ", k, ": ", e$message))
+  }
+  write.csv(eval_tbl, 
+            file = file.path("performance_species", paste0(gsub(" ", "_", sp), "_performance.csv")), 
+            row.names = FALSE)
+  }
+
+
+  
+d <- spp[grepl("Acacia mea", spp$species), ]
+unique(d$species)
