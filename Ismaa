@@ -233,3 +233,18 @@ for (sp in species_vec[-1]) {
   
 d <- spp[grepl("Acacia mea", spp$species), ]
 unique(d$species)
+
+
+# Functions: 
+
+get_species <- function(x) {
+  basename(x) |>
+    str_remove("_\\d+_.*\\.tif$")          
+}
+
+
+save_pred <- function(ras, dir_out, sp, k, tag) {
+  if (!dir.exists(dir_out)) dir.create(dir_out, rec = TRUE)
+  fname <- file.path(dir_out, sprintf("%s_%d_%s.tif", sp, k, tag))
+  try(writeRaster(ras, fname, overwrite = TRUE), silent = TRUE)
+}
